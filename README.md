@@ -1,84 +1,75 @@
-# 🐼 PandaLogix WMS - Deploy to Vercel
+# 🐼 PandaLogix WMS
 
-## ✅ CORRECT STRUCTURE (Fixed!)
+Production-ready Warehouse Management System built with Next.js 14 (App Router), TypeScript, and Tailwind CSS 3.4. It includes client management, quality control with photos, inventory tracking, and CSV exportable reports.
+
+## Features
+
+- Client management
+- Quality control with photos
+- Inventory tracking with low-stock alerts
+- Reports with CSV export
+- Accessible, responsive UI with a consistent brand design
+
+## Tech Stack
+
+- Next.js 14 (App Router)
+- TypeScript
+- Tailwind CSS 3.4
+- Lucide Icons, Recharts
+
+## Project Structure
 
 ```
-pandalogix-wms/
-├── app/              ← At ROOT level (not in src/)
-│   ├── layout.js
-│   ├── page.js
-│   └── WMSApp.jsx
+pandalogix-wms-deploy/
+├── app/
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── WMSApp.jsx
+│   └── components/
+│       ├── Nav.jsx
+│       ├── Dashboard.jsx
+│       ├── ClientsView.jsx
+│       ├── GoodsReceivedView.jsx
+│       ├── ShipmentsView.jsx
+│       ├── InventoryView.jsx
+│       └── ReportsView.jsx
+├── lib/
+│   ├── brand.ts
+│   ├── csv.ts
+│   └── storage.ts
+├── app/globals.css
+├── tailwind.config.js
+├── postcss.config.js
+├── tsconfig.json
 ├── package.json
 └── next.config.js
 ```
 
-## 🚀 Deploy Instructions
+## Getting Started
 
-### Verify Structure First!
-
-Before deploying, check your folder:
-```bash
-ls -la
-# You should see:
-# app/
-# package.json
-# next.config.js
-```
-
-```bash
-ls -la app/
-# You should see:
-# layout.js
-# page.js
-# WMSApp.jsx
-```
-
-### Deploy to Vercel
-
-**Option 1: GitHub**
-1. Push ALL files to GitHub (including the `app` folder!)
-2. On GitHub, verify you see the `app` folder
-3. Go to vercel.com → Import repository → Deploy
-
-**Option 2: Vercel CLI (Easier)**
-```bash
-npm install -g vercel
-cd pandalogix-wms-deploy
-vercel
-```
-
-### Test Locally First
+Prerequisites: Node.js 18+
 
 ```bash
 npm install
-npm run build    # Must succeed!
-npm run dev      # Test at localhost:3000
+npm run dev        # http://localhost:3000
+
+npm run build
+npm run start      # production server
 ```
 
-## ⚠️ Common Issue
+## Deployment
 
-**If GitHub doesn't show the `app` folder:**
-- GitHub may have ignored it
-- Solution: Use Vercel CLI instead
-- Or zip the folder and upload directly to Vercel
+Use GitHub import on Vercel or deploy via CLI:
 
-## 📦 What's Inside
-
-- Complete WMS with all features
-- Client management
-- Quality control with photos
-- Inventory tracking
-- Reports with CSV export
-
-## 🐼 Support
-
-If you still get the error, the `app` folder is not being uploaded.
-
-**Quick fix:**
 ```bash
-# Use Vercel CLI - it will upload everything correctly
-npm i -g vercel
+npm install -g vercel
 vercel
 ```
 
-🎋 Built for PandaLogix
+## Repository
+
+Remote: `https://github.com/LuqmanKt98/pandalogix-wms.git`
+
+## License
+
+MIT
