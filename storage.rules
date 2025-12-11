@@ -19,19 +19,27 @@ service firebase.storage {
           || request.resource.contentType.matches('application/msword')
           || request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.*');
     }
+
+    // Helper function to check if user is admin or superAdmin via Firestore
+    function isWritableRole() {
+      return isAuthenticated() 
+             && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+             && (firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin' 
+                 || firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'superAdmin');
+    }
     
     // Shipment attachments - BOL uploads, labels, pickup photos
     match /shipments/{shipmentId}/{allPaths=**} {
       // All authenticated users can read shipment files
       allow read: if isAuthenticated();
       
-      // All authenticated users can upload/update shipment files with size and type validation
-      allow write: if isAuthenticated() 
+      // Only admins/superAdmins can upload/update
+      allow write: if isWritableRole() 
                    && isValidFileSize()
                    && isValidContentType();
       
-      // Allow delete for authenticated users
-      allow delete: if isAuthenticated();
+      // Only admins/superAdmins can delete
+      allow delete: if isWritableRole();
     }
     
     // Goods Received attachments - receiving photos, documentation
@@ -39,46 +47,46 @@ service firebase.storage {
       // All authenticated users can read goods received files
       allow read: if isAuthenticated();
       
-      // All authenticated users can upload/update files with size and type validation
-      allow write: if isAuthenticated() 
+      // Only admins/superAdmins can upload/update
+      allow write: if isWritableRole() 
                    && isValidFileSize()
                    && isValidContentType();
       
-      // Allow delete for authenticated users
-      allow delete: if isAuthenticated();
+      // Only admins/superAdmins can delete
+      allow delete: if isWritableRole();
     }
     
     // Inventory attachments - product photos
     match /inventory/{inventoryId}/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() 
+      allow write: if isWritableRole() 
                    && isValidFileSize()
                    && isValidContentType();
-      allow delete: if isAuthenticated();
+      allow delete: if isWritableRole();
     }
     
     // Client attachments - contracts, logos
     match /clients/{clientId}/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() 
+      allow write: if isWritableRole() 
                    && isValidFileSize()
                    && isValidContentType();
-      allow delete: if isAuthenticated();
+      allow delete: if isWritableRole();
     }
     
     // User profile images
     match /users/{userId}/{allPaths=**} {
-      // Users can read their own files, admins can read all
+      // Users can read their own files, admins/superAdmins can read all (implied by isAuthenticated here, strictly speaking should be fine)
       allow read: if isAuthenticated();
       
-      // Users can only write to their own folder
+      // Users can only write to their own folder, or Admins/SuperAdmins can manage
       allow write: if isAuthenticated() 
-                   && request.auth.uid == userId
+                   && (request.auth.uid == userId || isWritableRole())
                    && isValidFileSize()
                    && request.resource.contentType.matches('image/.*');
       
-      // Users can delete their own files
-      allow delete: if isAuthenticated() && request.auth.uid == userId;
+      // Users can delete their own files, or Admins/SuperAdmins can manage
+      allow delete: if isAuthenticated() && (request.auth.uid == userId || isWritableRole());
     }
     
     // Temporary uploads folder for processing

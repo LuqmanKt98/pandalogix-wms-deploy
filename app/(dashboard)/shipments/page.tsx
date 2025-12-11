@@ -834,61 +834,63 @@ export default function ShipmentsPage() {
 
                             <TabsContent value="attachments" className="mt-4 space-y-4">
                                 {/* Upload Buttons */}
-                                <div className="flex flex-wrap gap-2">
-                                    <input
-                                        type="file"
-                                        ref={fileInputRef}
-                                        className="hidden"
-                                        onChange={(e) => {
-                                            const type = fileInputRef.current?.dataset.uploadType as 'bol' | 'label' | 'photo' || 'other'
-                                            handleFileUpload(e, type)
-                                        }}
-                                        accept=".pdf,.png,.jpg,.jpeg"
-                                    />
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={uploadingFile}
-                                        onClick={() => {
-                                            if (fileInputRef.current) {
-                                                fileInputRef.current.dataset.uploadType = 'bol'
-                                                fileInputRef.current.click()
-                                            }
-                                        }}
-                                    >
-                                        {uploadingFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                                        Upload BOL
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={uploadingFile}
-                                        onClick={() => {
-                                            if (fileInputRef.current) {
-                                                fileInputRef.current.dataset.uploadType = 'label'
-                                                fileInputRef.current.click()
-                                            }
-                                        }}
-                                    >
-                                        {uploadingFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                                        Upload Label
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={uploadingFile}
-                                        onClick={() => {
-                                            if (fileInputRef.current) {
-                                                fileInputRef.current.dataset.uploadType = 'photo'
-                                                fileInputRef.current.accept = 'image/*'
-                                                fileInputRef.current.click()
-                                            }
-                                        }}
-                                    >
-                                        {uploadingFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                                        Upload Photo
-                                    </Button>
-                                </div>
+                                {(isAdmin || isSuperAdmin) && (
+                                    <div className="flex flex-wrap gap-2">
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const type = fileInputRef.current?.dataset.uploadType as 'bol' | 'label' | 'photo' || 'other'
+                                                handleFileUpload(e, type)
+                                            }}
+                                            accept=".pdf,.png,.jpg,.jpeg"
+                                        />
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={uploadingFile}
+                                            onClick={() => {
+                                                if (fileInputRef.current) {
+                                                    fileInputRef.current.dataset.uploadType = 'bol'
+                                                    fileInputRef.current.click()
+                                                }
+                                            }}
+                                        >
+                                            {uploadingFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                            Upload BOL
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={uploadingFile}
+                                            onClick={() => {
+                                                if (fileInputRef.current) {
+                                                    fileInputRef.current.dataset.uploadType = 'label'
+                                                    fileInputRef.current.click()
+                                                }
+                                            }}
+                                        >
+                                            {uploadingFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                            Upload Label
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={uploadingFile}
+                                            onClick={() => {
+                                                if (fileInputRef.current) {
+                                                    fileInputRef.current.dataset.uploadType = 'photo'
+                                                    fileInputRef.current.accept = 'image/*'
+                                                    fileInputRef.current.click()
+                                                }
+                                            }}
+                                        >
+                                            {uploadingFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                            Upload Photo
+                                        </Button>
+                                    </div>
+                                )}
 
                                 {/* Attachments List */}
                                 {(viewingRecord.attachments || []).length > 0 ? (
@@ -916,13 +918,15 @@ export default function ShipmentsPage() {
                                                     >
                                                         <ExternalLink className="h-4 w-4" />
                                                     </a>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => handleRemoveAttachment(attachment)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                    </Button>
+                                                    {(isAdmin || isSuperAdmin) && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => handleRemoveAttachment(attachment)}
+                                                        >
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
