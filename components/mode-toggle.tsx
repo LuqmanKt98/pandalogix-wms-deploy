@@ -13,7 +13,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export function ModeToggle() {
+export function ModeToggle({ hideSystem = false }: { hideSystem?: boolean }) {
     const { theme, setTheme } = useTheme()
     const [mounted, setMounted] = React.useState(false)
 
@@ -90,19 +90,21 @@ export function ModeToggle() {
                         />
                     )}
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                    onClick={() => setTheme("system")}
-                    className="flex items-center gap-2 cursor-pointer"
-                >
-                    <Monitor className="h-4 w-4" />
-                    <span>System</span>
-                    {theme === "system" && (
-                        <motion.div
-                            layoutId="themeCheck"
-                            className="ml-auto h-2 w-2 rounded-full bg-emerald-500"
-                        />
-                    )}
-                </DropdownMenuItem>
+                {!hideSystem && (
+                    <DropdownMenuItem
+                        onClick={() => setTheme("system")}
+                        className="flex items-center gap-2 cursor-pointer"
+                    >
+                        <Monitor className="h-4 w-4" />
+                        <span>System</span>
+                        {theme === "system" && (
+                            <motion.div
+                                layoutId="themeCheck"
+                                className="ml-auto h-2 w-2 rounded-full bg-emerald-500"
+                            />
+                        )}
+                    </DropdownMenuItem>
+                )}
             </DropdownMenuContent>
         </DropdownMenu>
     )
