@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useCurrentUser } from "@/contexts/auth-context"
+import { useCurrentUser, useAuth } from "@/contexts/auth-context"
 import { getClients, createClient, updateClient, deleteClient } from "@/lib/firestore"
 import { Client } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ import { toast } from "@/components/ui/use-toast"
 
 export default function ClientsPage() {
     const currentUser = useCurrentUser()
+    const { isAdmin, isSuperAdmin } = useAuth()
     const [clients, setClients] = useState<Client[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState("")
@@ -150,93 +151,95 @@ export default function ClientsPage() {
                         <RefreshCw className="mr-2 h-4 w-4" />
                         Refresh
                     </Button>
-                    <Dialog open={isAddOpen} onOpenChange={(open) => {
-                        setIsAddOpen(open)
-                        if (!open) {
-                            setEditingId(null)
-                            setFormData({ name: "", contact: "", phone: "", email: "", notes: "", customPackaging: "" })
-                        }
-                    }}>
-                        <DialogTrigger asChild>
-                            <Button><Plus className="mr-2 h-4 w-4" /> Add Client</Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                                <DialogTitle>{editingId ? 'Edit Client' : 'Add New Client'}</DialogTitle>
-                                <DialogDescription>
-                                    Manage client details and preferences.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid grid-cols-2 gap-4">
+                    {(isAdmin || isSuperAdmin) && (
+                        <Dialog open={isAddOpen} onOpenChange={(open) => {
+                            setIsAddOpen(open)
+                            if (!open) {
+                                setEditingId(null)
+                                setFormData({ name: "", contact: "", phone: "", email: "", notes: "", customPackaging: "" })
+                            }
+                        }}>
+                            <DialogTrigger asChild>
+                                <Button><Plus className="mr-2 h-4 w-4" /> Add Client</Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl">
+                                <DialogHeader>
+                                    <DialogTitle>{editingId ? 'Edit Client' : 'Add New Client'}</DialogTitle>
+                                    <DialogDescription>
+                                        Manage client details and preferences.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="name">Company Name *</Label>
+                                            <Input
+                                                id="name"
+                                                value={formData.name}
+                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="contact">Contact Person *</Label>
+                                            <Input
+                                                id="contact"
+                                                value={formData.contact}
+                                                onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="phone">Phone</Label>
+                                            <Input
+                                                id="phone"
+                                                value={formData.phone}
+                                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="email">Email</Label>
+                                            <Input
+                                                id="email"
+                                                type="email"
+                                                value={formData.email}
+                                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="name">Company Name *</Label>
+                                        <Label htmlFor="packaging">Custom Packaging Instructions</Label>
                                         <Input
-                                            id="name"
-                                            value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            id="packaging"
+                                            value={formData.customPackaging}
+                                            onChange={(e) => setFormData({ ...formData, customPackaging: e.target.value })}
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="contact">Contact Person *</Label>
-                                        <Input
-                                            id="contact"
-                                            value={formData.contact}
-                                            onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                                        <Label htmlFor="notes">Notes</Label>
+                                        <Textarea
+                                            id="notes"
+                                            value={formData.notes}
+                                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                            rows={3}
                                         />
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="phone">Phone</Label>
-                                        <Input
-                                            id="phone"
-                                            value={formData.phone}
-                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="email">Email</Label>
-                                        <Input
-                                            id="email"
-                                            type="email"
-                                            value={formData.email}
-                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="packaging">Custom Packaging Instructions</Label>
-                                    <Input
-                                        id="packaging"
-                                        value={formData.customPackaging}
-                                        onChange={(e) => setFormData({ ...formData, customPackaging: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="notes">Notes</Label>
-                                    <Textarea
-                                        id="notes"
-                                        value={formData.notes}
-                                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                        rows={3}
-                                    />
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button onClick={handleSubmit} disabled={isSubmitting}>
-                                    {isSubmitting ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            {editingId ? 'Updating...' : 'Saving...'}
-                                        </>
-                                    ) : (
-                                        <>{editingId ? 'Update' : 'Save'} Client</>
-                                    )}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                <DialogFooter>
+                                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                                        {isSubmitting ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                {editingId ? 'Updating...' : 'Saving...'}
+                                            </>
+                                        ) : (
+                                            <>{editingId ? 'Update' : 'Save'} Client</>
+                                        )}
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    )}
                 </div>
             </div>
 
@@ -260,13 +263,13 @@ export default function ClientsPage() {
                             <TableHead>Contact</TableHead>
                             <TableHead>Phone</TableHead>
                             <TableHead>Email</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                            {(isAdmin || isSuperAdmin) && <TableHead className="text-right">Actions</TableHead>}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredClients.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
+                                <TableCell colSpan={(isAdmin || isSuperAdmin) ? 5 : 4} className="h-24 text-center">
                                     No clients found.
                                 </TableCell>
                             </TableRow>
@@ -283,16 +286,18 @@ export default function ClientsPage() {
                                     <TableCell>{client.contact}</TableCell>
                                     <TableCell>{client.phone}</TableCell>
                                     <TableCell>{client.email}</TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex justify-end space-x-2">
-                                            <Button variant="ghost" size="icon" onClick={() => handleEdit(client)}>
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(client)}>
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                            </Button>
-                                        </div>
-                                    </TableCell>
+                                    {(isAdmin || isSuperAdmin) && (
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end space-x-2">
+                                                <Button variant="ghost" size="icon" onClick={() => handleEdit(client)}>
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                                <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(client)}>
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    )}
                                 </motion.tr>
                             ))
                         )}

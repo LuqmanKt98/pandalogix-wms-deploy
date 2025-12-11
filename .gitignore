@@ -25,3 +25,5 @@ pnpm-debug.log*
 build.log
 tsc_output.txt
 tsconfig.tsbuildinfo
+
+.vercel

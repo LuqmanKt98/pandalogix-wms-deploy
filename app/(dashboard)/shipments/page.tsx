@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { useCurrentUser } from "@/contexts/auth-context"
+import { useCurrentUser, useAuth } from "@/contexts/auth-context"
 import { getShipments, getClients, createShipment, updateShipment, deleteShipment, addShipmentAttachment, removeShipmentAttachment } from "@/lib/firestore"
 import { uploadFile, deleteFile } from "@/lib/storage"
 import { Shipment, Client, ShipmentItem, ShipmentStatus, ShipmentType, Attachment } from "@/lib/types"
@@ -57,6 +57,7 @@ const typeColors: Record<ShipmentType, string> = {
 
 export default function ShipmentsPage() {
     const currentUser = useCurrentUser()
+    const { isAdmin, isSuperAdmin } = useAuth()
     const [shipments, setShipments] = useState<Shipment[]>([])
     const [clients, setClients] = useState<Client[]>([])
     const [loading, setLoading] = useState(true)
@@ -335,245 +336,247 @@ export default function ShipmentsPage() {
                         <RefreshCw className="mr-2 h-4 w-4" />
                         Refresh
                     </Button>
-                    <Dialog open={isAddOpen} onOpenChange={(open) => {
-                        setIsAddOpen(open)
-                        if (!open) resetForm()
-                    }}>
-                        <DialogTrigger asChild>
-                            <Button><Plus className="mr-2 h-4 w-4" /> New Shipment</Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                                <DialogTitle>{editingId ? 'Edit' : 'New'} Shipment</DialogTitle>
-                                <DialogDescription>
-                                    Create an outbound shipment with items and details.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-6 py-4">
-                                {/* Header Info */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Date *</Label>
-                                        <Input
-                                            type="date"
-                                            value={formData.date}
-                                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Client *</Label>
-                                        <Select
-                                            value={formData.clientId}
-                                            onValueChange={(val) => setFormData({ ...formData, clientId: val })}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select client" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {clients.map(client => (
-                                                    <SelectItem key={client.id} value={client.id}>
-                                                        {client.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Shipment Type</Label>
-                                        <Select
-                                            value={formData.shipmentType}
-                                            onValueChange={(val: ShipmentType) => setFormData({ ...formData, shipmentType: val })}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Standard">Standard</SelectItem>
-                                                <SelectItem value="FBA">FBA (Amazon)</SelectItem>
-                                                <SelectItem value="TikTok">TikTok Shop</SelectItem>
-                                                <SelectItem value="Other">Other</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Status</Label>
-                                        <Select
-                                            value={formData.status}
-                                            onValueChange={(val: ShipmentStatus) => setFormData({ ...formData, status: val })}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Planned">Planned</SelectItem>
-                                                <SelectItem value="Created">Created</SelectItem>
-                                                <SelectItem value="Booked">Booked</SelectItem>
-                                                <SelectItem value="Picked Up">Picked Up</SelectItem>
-                                                <SelectItem value="Delivered">Delivered</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Destination {(formData.shipmentType === 'FBA' || formData.shipmentType === 'TikTok') && '(FC Code)'}</Label>
-                                        <Input
-                                            value={formData.destination}
-                                            onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-                                            placeholder={formData.shipmentType === 'FBA' ? 'e.g., PHX5' : 'Destination'}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Carrier</Label>
-                                        <Input
-                                            value={formData.carrier}
-                                            onChange={(e) => setFormData({ ...formData, carrier: e.target.value })}
-                                            placeholder="e.g., UPS, FedEx"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Tracking Number</Label>
-                                        <Input
-                                            value={formData.trackingNumber}
-                                            onChange={(e) => setFormData({ ...formData, trackingNumber: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label># Pallets</Label>
-                                        <Input
-                                            type="number"
-                                            min="0"
-                                            value={formData.numberOfPallets}
-                                            onChange={(e) => setFormData({ ...formData, numberOfPallets: Number(e.target.value) })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Notes</Label>
-                                    <Textarea
-                                        value={formData.notes}
-                                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                        placeholder="Optional notes..."
-                                        rows={2}
-                                    />
-                                </div>
-
-                                {/* Items Section */}
-                                <div className="border-t pt-4">
-                                    <h4 className="font-medium mb-4">Items</h4>
-
-                                    {/* Add Item Form */}
-                                    <div className="grid grid-cols-6 gap-2 mb-4 p-4 bg-muted/50 rounded-lg">
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">SKU</Label>
+                    {(isAdmin || isSuperAdmin) && (
+                        <Dialog open={isAddOpen} onOpenChange={(open) => {
+                            setIsAddOpen(open)
+                            if (!open) resetForm()
+                        }}>
+                            <DialogTrigger asChild>
+                                <Button><Plus className="mr-2 h-4 w-4" /> New Shipment</Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                                <DialogHeader>
+                                    <DialogTitle>{editingId ? 'Edit' : 'New'} Shipment</DialogTitle>
+                                    <DialogDescription>
+                                        Create an outbound shipment with items and details.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-6 py-4">
+                                    {/* Header Info */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Date *</Label>
                                             <Input
-                                                value={newItem.sku}
-                                                onChange={(e) => setNewItem({ ...newItem, sku: e.target.value })}
-                                                placeholder="SKU"
+                                                type="date"
+                                                value={formData.date}
+                                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                                             />
                                         </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Name</Label>
+                                        <div className="space-y-2">
+                                            <Label>Client *</Label>
+                                            <Select
+                                                value={formData.clientId}
+                                                onValueChange={(val) => setFormData({ ...formData, clientId: val })}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select client" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {clients.map(client => (
+                                                        <SelectItem key={client.id} value={client.id}>
+                                                            {client.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Shipment Type</Label>
+                                            <Select
+                                                value={formData.shipmentType}
+                                                onValueChange={(val: ShipmentType) => setFormData({ ...formData, shipmentType: val })}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Standard">Standard</SelectItem>
+                                                    <SelectItem value="FBA">FBA (Amazon)</SelectItem>
+                                                    <SelectItem value="TikTok">TikTok Shop</SelectItem>
+                                                    <SelectItem value="Other">Other</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Status</Label>
+                                            <Select
+                                                value={formData.status}
+                                                onValueChange={(val: ShipmentStatus) => setFormData({ ...formData, status: val })}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Planned">Planned</SelectItem>
+                                                    <SelectItem value="Created">Created</SelectItem>
+                                                    <SelectItem value="Booked">Booked</SelectItem>
+                                                    <SelectItem value="Picked Up">Picked Up</SelectItem>
+                                                    <SelectItem value="Delivered">Delivered</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Destination {(formData.shipmentType === 'FBA' || formData.shipmentType === 'TikTok') && '(FC Code)'}</Label>
                                             <Input
-                                                value={newItem.name}
-                                                onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                                                placeholder="Item name"
+                                                value={formData.destination}
+                                                onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
+                                                placeholder={formData.shipmentType === 'FBA' ? 'e.g., PHX5' : 'Destination'}
                                             />
                                         </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Quantity</Label>
+                                        <div className="space-y-2">
+                                            <Label>Carrier</Label>
                                             <Input
-                                                type="number"
-                                                min="1"
-                                                value={newItem.quantity}
-                                                onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                                                value={formData.carrier}
+                                                onChange={(e) => setFormData({ ...formData, carrier: e.target.value })}
+                                                placeholder="e.g., UPS, FedEx"
                                             />
                                         </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Cartons</Label>
+                                        <div className="space-y-2">
+                                            <Label>Tracking Number</Label>
+                                            <Input
+                                                value={formData.trackingNumber}
+                                                onChange={(e) => setFormData({ ...formData, trackingNumber: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label># Pallets</Label>
                                             <Input
                                                 type="number"
                                                 min="0"
-                                                value={newItem.cartonQuantity}
-                                                onChange={(e) => setNewItem({ ...newItem, cartonQuantity: Number(e.target.value) })}
+                                                value={formData.numberOfPallets}
+                                                onChange={(e) => setFormData({ ...formData, numberOfPallets: Number(e.target.value) })}
                                             />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Pallet Info</Label>
-                                            <Input
-                                                value={newItem.palletInfo}
-                                                onChange={(e) => setNewItem({ ...newItem, palletInfo: e.target.value })}
-                                                placeholder="e.g., P1"
-                                            />
-                                        </div>
-                                        <div className="flex items-end">
-                                            <Button type="button" onClick={handleAddItem} size="sm" className="w-full">
-                                                <Plus className="h-4 w-4" />
-                                            </Button>
                                         </div>
                                     </div>
 
-                                    {/* Items List */}
-                                    {formData.items.length > 0 ? (
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>SKU</TableHead>
-                                                    <TableHead>Name</TableHead>
-                                                    <TableHead className="text-right">Qty</TableHead>
-                                                    <TableHead className="text-right">Cartons</TableHead>
-                                                    <TableHead>Pallet</TableHead>
-                                                    <TableHead className="w-[50px]"></TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {formData.items.map((item, index) => (
-                                                    <TableRow key={index}>
-                                                        <TableCell className="font-mono">{item.sku}</TableCell>
-                                                        <TableCell>{item.name}</TableCell>
-                                                        <TableCell className="text-right">{item.quantity}</TableCell>
-                                                        <TableCell className="text-right">{item.cartonQuantity}</TableCell>
-                                                        <TableCell>{item.palletInfo || '-'}</TableCell>
-                                                        <TableCell>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => handleRemoveItem(index)}
-                                                            >
-                                                                <X className="h-4 w-4 text-destructive" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    ) : (
-                                        <p className="text-center text-muted-foreground py-4">No items added yet</p>
-                                    )}
+                                    <div className="space-y-2">
+                                        <Label>Notes</Label>
+                                        <Textarea
+                                            value={formData.notes}
+                                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                            placeholder="Optional notes..."
+                                            rows={2}
+                                        />
+                                    </div>
 
-                                    {formData.items.length > 0 && (
-                                        <div className="flex justify-end mt-2 text-sm text-muted-foreground">
-                                            Total: {formData.items.reduce((sum, i) => sum + i.quantity, 0)} units in {formData.items.reduce((sum, i) => sum + i.cartonQuantity, 0)} cartons
+                                    {/* Items Section */}
+                                    <div className="border-t pt-4">
+                                        <h4 className="font-medium mb-4">Items</h4>
+
+                                        {/* Add Item Form */}
+                                        <div className="grid grid-cols-6 gap-2 mb-4 p-4 bg-muted/50 rounded-lg">
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">SKU</Label>
+                                                <Input
+                                                    value={newItem.sku}
+                                                    onChange={(e) => setNewItem({ ...newItem, sku: e.target.value })}
+                                                    placeholder="SKU"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Name</Label>
+                                                <Input
+                                                    value={newItem.name}
+                                                    onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                                                    placeholder="Item name"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Quantity</Label>
+                                                <Input
+                                                    type="number"
+                                                    min="1"
+                                                    value={newItem.quantity}
+                                                    onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Cartons</Label>
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    value={newItem.cartonQuantity}
+                                                    onChange={(e) => setNewItem({ ...newItem, cartonQuantity: Number(e.target.value) })}
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Pallet Info</Label>
+                                                <Input
+                                                    value={newItem.palletInfo}
+                                                    onChange={(e) => setNewItem({ ...newItem, palletInfo: e.target.value })}
+                                                    placeholder="e.g., P1"
+                                                />
+                                            </div>
+                                            <div className="flex items-end">
+                                                <Button type="button" onClick={handleAddItem} size="sm" className="w-full">
+                                                    <Plus className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </div>
-                                    )}
+
+                                        {/* Items List */}
+                                        {formData.items.length > 0 ? (
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>SKU</TableHead>
+                                                        <TableHead>Name</TableHead>
+                                                        <TableHead className="text-right">Qty</TableHead>
+                                                        <TableHead className="text-right">Cartons</TableHead>
+                                                        <TableHead>Pallet</TableHead>
+                                                        <TableHead className="w-[50px]"></TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {formData.items.map((item, index) => (
+                                                        <TableRow key={index}>
+                                                            <TableCell className="font-mono">{item.sku}</TableCell>
+                                                            <TableCell>{item.name}</TableCell>
+                                                            <TableCell className="text-right">{item.quantity}</TableCell>
+                                                            <TableCell className="text-right">{item.cartonQuantity}</TableCell>
+                                                            <TableCell>{item.palletInfo || '-'}</TableCell>
+                                                            <TableCell>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() => handleRemoveItem(index)}
+                                                                >
+                                                                    <X className="h-4 w-4 text-destructive" />
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        ) : (
+                                            <p className="text-center text-muted-foreground py-4">No items added yet</p>
+                                        )}
+
+                                        {formData.items.length > 0 && (
+                                            <div className="flex justify-end mt-2 text-sm text-muted-foreground">
+                                                Total: {formData.items.reduce((sum, i) => sum + i.quantity, 0)} units in {formData.items.reduce((sum, i) => sum + i.cartonQuantity, 0)} cartons
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                            <DialogFooter>
-                                <Button onClick={handleSubmit} disabled={isSubmitting}>
-                                    {isSubmitting ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            {editingId ? 'Updating...' : 'Saving...'}
-                                        </>
-                                    ) : (
-                                        <>{editingId ? 'Update' : 'Create'} Shipment</>
-                                    )}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                <DialogFooter>
+                                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                                        {isSubmitting ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                {editingId ? 'Updating...' : 'Saving...'}
+                                            </>
+                                        ) : (
+                                            <>{editingId ? 'Update' : 'Create'} Shipment</>
+                                        )}
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    )}
                 </div>
             </div>
 
@@ -670,12 +673,16 @@ export default function ShipmentsPage() {
                                             <Button variant="ghost" size="icon" onClick={() => handleView(shipment)}>
                                                 <Eye className="h-4 w-4" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" onClick={() => handleEdit(shipment)}>
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(shipment)}>
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                            </Button>
+                                            {(isAdmin || isSuperAdmin) && (
+                                                <>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(shipment)}>
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(shipment)}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </Button>
+                                                </>
+                                            )}
                                         </div>
                                     </TableCell>
                                 </motion.tr>

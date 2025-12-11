@@ -461,6 +461,8 @@ export default function UsersPage() {
                                                         variant="ghost"
                                                         size="icon"
                                                         onClick={() => handleEditUser(user)}
+                                                        disabled={!isSuperAdmin && (user.role === 'admin' || user.role === 'superAdmin')}
+                                                        title={!isSuperAdmin && (user.role === 'admin' || user.role === 'superAdmin') ? 'You cannot edit this user' : undefined}
                                                     >
                                                         <Edit className="h-4 w-4" />
                                                     </Button>
@@ -468,8 +470,11 @@ export default function UsersPage() {
                                                         variant="ghost"
                                                         size="icon"
                                                         onClick={() => handleDeleteClick(user)}
-                                                        disabled={user.id === currentUser?.id || user.role === 'superAdmin'}
-                                                        title={user.role === 'superAdmin' ? 'Super Admin cannot be deleted' : undefined}
+                                                        disabled={user.id === currentUser?.id || user.role === 'superAdmin' || (!isSuperAdmin && user.role === 'admin')}
+                                                        title={
+                                                            user.role === 'superAdmin' ? 'Super Admin cannot be deleted' :
+                                                                (!isSuperAdmin && user.role === 'admin') ? 'You cannot delete other Admins' : undefined
+                                                        }
                                                     >
                                                         <Trash2 className="h-4 w-4 text-destructive" />
                                                     </Button>

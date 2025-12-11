@@ -83,9 +83,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password, name, role = 'staff' } = body;
 
-    // Security check: Only Super Admin can create a Super Admin
     if (role === 'superAdmin' && !isSuperAdmin) {
       return NextResponse.json({ error: 'Only Super Admins can create Super Admin accounts' }, { status: 403 });
+    }
+
+    // Admin cannot create Admin accounts
+    if (role === 'admin' && !isSuperAdmin) {
+      return NextResponse.json({ error: 'Only Super Admins can create Admin accounts' }, { status: 403 });
     }
 
     if (!email || !password || !name) {

@@ -125,6 +125,22 @@ export async function PATCH(
       );
     }
 
+    // 3. Admin cannot modify Admin accounts
+    if (targetUserData?.role === 'admin' && !isSuperAdmin) {
+      return NextResponse.json(
+        { error: 'Only Super Admins can modify Admin accounts' },
+        { status: 403 }
+      );
+    }
+
+    // 4. Admin cannot assign the Admin role
+    if (role === 'admin' && !isSuperAdmin) {
+      return NextResponse.json(
+        { error: 'Only Super Admins can assign the Admin role' },
+        { status: 403 }
+      );
+    }
+
     // Validate role if provided
     if (role && !['staff', 'admin', 'superAdmin'].includes(role)) {
       return NextResponse.json(
@@ -160,7 +176,7 @@ export async function DELETE(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   const { userId: targetUserId } = await params;
-  const { authorized, userId: requestingUserId } = await verifyAdminAccess(request);
+  const { authorized, userId: requestingUserId, isSuperAdmin } = await verifyAdminAccess(request);
 
   if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -181,8 +197,14 @@ export async function DELETE(
 
     const targetUserData = targetUserDoc.data();
 
+    // 1. Only Super Admins can delete Super Admins
     if (targetUserData?.role === 'superAdmin') {
       return NextResponse.json({ error: 'Cannot delete superAdmin users' }, { status: 403 });
+    }
+
+    // 2. Only Super Admins can delete Admins
+    if (targetUserData?.role === 'admin' && !isSuperAdmin) {
+      return NextResponse.json({ error: 'Only Super Admins can delete Admin accounts' }, { status: 403 });
     }
 
     // Delete from Firestore first

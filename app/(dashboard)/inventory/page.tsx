@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useCurrentUser } from "@/contexts/auth-context"
+import { useCurrentUser, useAuth } from "@/contexts/auth-context"
 import { getInventory, getClients, createInventoryItem, updateInventoryItem, deleteInventoryItem, adjustInventoryQuantity } from "@/lib/firestore"
 import { InventoryItem, Client } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
+    DialogTrigger as DialogTrigger2, // Is this needed? No.
 } from "@/components/ui/dialog"
 import {
     Select,
@@ -38,6 +39,7 @@ import { toast } from "@/components/ui/use-toast"
 
 export default function InventoryPage() {
     const currentUser = useCurrentUser()
+    const { isAdmin, isSuperAdmin } = useAuth()
     const [inventory, setInventory] = useState<InventoryItem[]>([])
     const [clients, setClients] = useState<Client[]>([])
     const [loading, setLoading] = useState(true)
@@ -236,118 +238,120 @@ export default function InventoryPage() {
                         <RefreshCw className="mr-2 h-4 w-4" />
                         Refresh
                     </Button>
-                    <Dialog open={isAddOpen} onOpenChange={(open) => {
-                        setIsAddOpen(open)
-                        if (!open) resetForm()
-                    }}>
-                        <DialogTrigger asChild>
-                            <Button><Plus className="mr-2 h-4 w-4" /> Add Product</Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-lg">
-                            <DialogHeader>
-                                <DialogTitle>{editingId ? 'Edit' : 'Add New'} Product</DialogTitle>
-                                <DialogDescription>
-                                    {editingId ? 'Update product details.' : 'Create a new product SKU for a client.'}
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="client" className="text-right">Client *</Label>
-                                    <div className="col-span-3">
-                                        <Select
-                                            value={formData.clientId}
-                                            onValueChange={(val) => setFormData({ ...formData, clientId: val })}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select client" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {clients.map(client => (
-                                                    <SelectItem key={client.id} value={client.id}>
-                                                        {client.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                    {(isAdmin || isSuperAdmin) && (
+                        <Dialog open={isAddOpen} onOpenChange={(open) => {
+                            setIsAddOpen(open)
+                            if (!open) resetForm()
+                        }}>
+                            <DialogTrigger asChild>
+                                <Button><Plus className="mr-2 h-4 w-4" /> Add Product</Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-lg">
+                                <DialogHeader>
+                                    <DialogTitle>{editingId ? 'Edit' : 'Add New'} Product</DialogTitle>
+                                    <DialogDescription>
+                                        {editingId ? 'Update product details.' : 'Create a new product SKU for a client.'}
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="client" className="text-right">Client *</Label>
+                                        <div className="col-span-3">
+                                            <Select
+                                                value={formData.clientId}
+                                                onValueChange={(val) => setFormData({ ...formData, clientId: val })}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select client" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {clients.map(client => (
+                                                        <SelectItem key={client.id} value={client.id}>
+                                                            {client.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="sku" className="text-right">SKU *</Label>
+                                        <Input
+                                            id="sku"
+                                            value={formData.sku}
+                                            onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                                            className="col-span-3"
+                                            placeholder="e.g., PROD-001"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="name" className="text-right">Name *</Label>
+                                        <Input
+                                            id="name"
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            className="col-span-3"
+                                            placeholder="Product name"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="quantity" className="text-right">Quantity</Label>
+                                        <Input
+                                            id="quantity"
+                                            type="number"
+                                            min="0"
+                                            value={formData.quantity}
+                                            onChange={(e) => setFormData({ ...formData, quantity: Number(e.target.value) })}
+                                            className="col-span-3"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="minStock" className="text-right">Min Stock</Label>
+                                        <Input
+                                            id="minStock"
+                                            type="number"
+                                            min="0"
+                                            value={formData.minStock}
+                                            onChange={(e) => setFormData({ ...formData, minStock: Number(e.target.value) })}
+                                            className="col-span-3"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="location" className="text-right">Location</Label>
+                                        <Input
+                                            id="location"
+                                            value={formData.location}
+                                            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                            className="col-span-3"
+                                            placeholder="e.g., Aisle B, Shelf 3"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="notes" className="text-right">Notes</Label>
+                                        <Textarea
+                                            id="notes"
+                                            value={formData.notes}
+                                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                            className="col-span-3"
+                                            rows={2}
+                                        />
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="sku" className="text-right">SKU *</Label>
-                                    <Input
-                                        id="sku"
-                                        value={formData.sku}
-                                        onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                                        className="col-span-3"
-                                        placeholder="e.g., PROD-001"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="name" className="text-right">Name *</Label>
-                                    <Input
-                                        id="name"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        className="col-span-3"
-                                        placeholder="Product name"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="quantity" className="text-right">Quantity</Label>
-                                    <Input
-                                        id="quantity"
-                                        type="number"
-                                        min="0"
-                                        value={formData.quantity}
-                                        onChange={(e) => setFormData({ ...formData, quantity: Number(e.target.value) })}
-                                        className="col-span-3"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="minStock" className="text-right">Min Stock</Label>
-                                    <Input
-                                        id="minStock"
-                                        type="number"
-                                        min="0"
-                                        value={formData.minStock}
-                                        onChange={(e) => setFormData({ ...formData, minStock: Number(e.target.value) })}
-                                        className="col-span-3"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="location" className="text-right">Location</Label>
-                                    <Input
-                                        id="location"
-                                        value={formData.location}
-                                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                        className="col-span-3"
-                                        placeholder="e.g., Aisle B, Shelf 3"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="notes" className="text-right">Notes</Label>
-                                    <Textarea
-                                        id="notes"
-                                        value={formData.notes}
-                                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                        className="col-span-3"
-                                        rows={2}
-                                    />
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button onClick={handleSubmit} disabled={isSubmitting}>
-                                    {isSubmitting ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            {editingId ? 'Updating...' : 'Saving...'}
-                                        </>
-                                    ) : (
-                                        <>{editingId ? 'Update' : 'Save'} Product</>
-                                    )}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                <DialogFooter>
+                                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                                        {isSubmitting ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                {editingId ? 'Updating...' : 'Saving...'}
+                                            </>
+                                        ) : (
+                                            <>{editingId ? 'Update' : 'Save'} Product</>
+                                        )}
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    )}
                 </div>
             </div>
 
@@ -389,13 +393,13 @@ export default function InventoryPage() {
                             <TableHead className="text-right">Quantity</TableHead>
                             <TableHead className="text-right">Min Stock</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                            {(isAdmin || isSuperAdmin) && <TableHead className="text-right">Actions</TableHead>}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredInventory.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={8} className="h-24 text-center">
+                                <TableCell colSpan={(isAdmin || isSuperAdmin) ? 8 : 7} className="h-24 text-center">
                                     No products found.
                                 </TableCell>
                             </TableRow>
@@ -432,19 +436,21 @@ export default function InventoryPage() {
                                                 </span>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex justify-end space-x-1">
-                                                <Button variant="ghost" size="icon" onClick={() => handleAdjustClick(item)} title="Adjust quantity">
-                                                    <PackagePlus className="h-4 w-4" />
-                                                </Button>
-                                                <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-                                                    <Edit className="h-4 w-4" />
-                                                </Button>
-                                                <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(item)}>
-                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                </Button>
-                                            </div>
-                                        </TableCell>
+                                        {(isAdmin || isSuperAdmin) && (
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end space-x-1">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleAdjustClick(item)} title="Adjust quantity">
+                                                        <PackagePlus className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(item)}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        )}
                                     </motion.tr>
                                 )
                             })

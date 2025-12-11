@@ -16,7 +16,7 @@ service cloud.firestore {
     }
 
     function getUserRole() {
-      // Check if user exists and has a role field, otherwise return null
+      // Check if user exists and has a role field
       return userExists() && 'role' in getUserData() ? getUserData().role : null;
     }
 
@@ -40,73 +40,72 @@ service cloud.firestore {
       return isSuperAdmin() || isAdmin() || isStaff();
     }
 
-    // Users collection - Admin and Super Admin can manage users
+    // Users collection rules
     match /users/{userId} {
+      function getTargetUserRole() {
+        return get(/databases/$(database)/documents/users/$(userId)).data.role;
+      }
+      
       // Allow reading own document or if admin/superAdmin
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdminOrSuperAdmin());
 
-      // Allow creating own document during signup, or admin/superAdmin can create any user
-      // Ensure the document being created has a valid role field
-      allow create: if isAuthenticated() &&
-                      (request.auth.uid == userId || isAdminOrSuperAdmin()) &&
-                      request.resource.data.role in ['staff', 'admin', 'superAdmin'];
+      // Create:
+      // SuperAdmin can create any user.
+      // Admin can create 'staff' users only.
+      allow create: if isSuperAdmin() 
+                    || (isAdmin() && request.resource.data.role == 'staff');
 
-      // Admin and SuperAdmin can update users
-      // Ensure role field is not removed and remains valid
-      allow update: if isAdminOrSuperAdmin() &&
-                      request.resource.data.role in ['staff', 'admin', 'superAdmin'];
+      // Update:
+      // SuperAdmin can update users
+      // Admin can update ONLY 'staff' users, and can only maintain their role as 'staff'.
+      // Admin cannot update SuperAdmin or other Admins.
+      allow update: if isSuperAdmin()
+                    || (isAdmin() 
+                        && getTargetUserRole() == 'staff' 
+                        && request.resource.data.role == 'staff');
 
-      // Admin and SuperAdmin can delete users, but NOT superAdmin users and not themselves
-      allow delete: if isAdminOrSuperAdmin()
-                    && request.auth.uid != userId
-                    && get(/databases/$(database)/documents/users/$(userId)).data.role != 'superAdmin';
+      // Delete:
+      // SuperAdmin can delete users (except self, usually handled by client logic/auth rules).
+      // Admin can delete ONLY 'staff' users.
+      // Admin cannot delete SuperAdmin or other Admins.
+      allow delete: if isSuperAdmin()
+                    || (isAdmin() && getTargetUserRole() == 'staff');
     }
 
     // Clients collection - Role-based access control
     match /clients/{clientId} {
-      // All authenticated users with valid roles can read
       allow read: if isAnyRole();
-
+      
+      // Staff cannot create, update, delete (Read Only)
       // Admin and SuperAdmin can create, update, delete
-      // Staff can only create and update (not delete)
-      allow create, update: if isAnyRole();
-      allow delete: if isAdminOrSuperAdmin();
+      allow create, update, delete: if isAdminOrSuperAdmin();
     }
 
     // Inventory collection - Role-based access control
     match /inventory/{inventoryId} {
-      // All authenticated users with valid roles can read
       allow read: if isAnyRole();
-
-      // Admin and SuperAdmin can create, update, delete
-      // Staff can only create and update (not delete)
-      allow create, update: if isAnyRole();
-      allow delete: if isAdminOrSuperAdmin();
+      
+      // Staff cannot create, update, delete
+      allow create, update, delete: if isAdminOrSuperAdmin();
     }
 
     // Goods Received - Role-based access control
     match /goodsReceived/{receivedId} {
-      // All authenticated users with valid roles can read
       allow read: if isAnyRole();
-
-      // Admin and SuperAdmin can create, update, delete
-      // Staff can create and update (not delete)
-      allow create, update: if isAnyRole();
-      allow delete: if isAdminOrSuperAdmin();
+      
+      // Staff cannot create, update, delete
+      allow create, update, delete: if isAdminOrSuperAdmin();
     }
 
     // Shipments - Role-based access control
     match /shipments/{shipmentId} {
-      // All authenticated users with valid roles can read
       allow read: if isAnyRole();
-
-      // Admin and SuperAdmin can create, update, delete
-      // Staff can create and update (not delete)
-      allow create, update: if isAnyRole();
-      allow delete: if isAdminOrSuperAdmin();
+      
+      // Staff cannot create, update, delete
+      allow create, update, delete: if isAdminOrSuperAdmin();
     }
 
-    // Activity Log - Admin and Super Admin can read, all authenticated users can write
+    // Activity Log - Admin and Super Admin can read, all authenticated users can write logs
     match /activityLog/{logId} {
       allow read: if isAdminOrSuperAdmin();
       allow create: if isAnyRole();
