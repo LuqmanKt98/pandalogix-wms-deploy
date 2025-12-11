@@ -210,7 +210,7 @@ export default function ReportsPage() {
             const clientReceived = goodsReceived.filter(r => r.clientId === selectedClient)
 
             const filtered = clientReceived.filter(r => {
-                const date = r.dateReceived.toDate ? r.dateReceived.toDate() : new Date(r.dateReceived)
+                const date = r.dateReceived && typeof r.dateReceived.toDate === 'function' ? r.dateReceived.toDate() : new Date(r.dateReceived as unknown as string | number)
                 const dateStr = format(date, 'yyyy-MM-dd')
                 if (!dateRange.start || !dateRange.end) return true
                 return dateStr >= dateRange.start && dateStr <= dateRange.end
