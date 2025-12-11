@@ -61,7 +61,7 @@ export default function LoginPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
         >
-            <Card className="w-full bg-slate-900/50 border-slate-700/50 backdrop-blur-sm shadow-xl">
+            <Card className="w-full backdrop-blur-sm shadow-xl bg-card/50 border-border">
                 <CardHeader className="space-y-1 text-center">
                     {/* Panda Logo */}
                     <div className="mx-auto w-24 h-24 flex items-center justify-center mb-4 overflow-hidden rounded-full">
@@ -71,10 +71,10 @@ export default function LoginPage() {
                             className="w-full h-full object-contain"
                         />
                     </div>
-                    <CardTitle className="text-2xl font-bold text-white">
+                    <CardTitle className="text-2xl font-bold text-foreground">
                         {showResetPassword ? "Reset Password" : "Welcome Back"}
                     </CardTitle>
-                    <CardDescription className="text-slate-400">
+                    <CardDescription className="text-muted-foreground">
                         {showResetPassword
                             ? "Enter your email to receive a reset link"
                             : "Sign in to PandaLogix WMS"}
@@ -86,7 +86,7 @@ export default function LoginPage() {
                         <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
-                            className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm"
+                            className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm"
                         >
                             <AlertCircle className="h-4 w-4 shrink-0" />
                             <span>{error}</span>
@@ -97,7 +97,7 @@ export default function LoginPage() {
                         <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
-                            className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm"
+                            className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm"
                         >
                             <CheckCircle className="h-4 w-4 shrink-0" />
                             <span>Password reset email sent! Check your inbox.</span>
@@ -107,16 +107,16 @@ export default function LoginPage() {
                     {showResetPassword ? (
                         <form onSubmit={handleResetPassword} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="email" className="text-slate-300">Email</Label>
+                                <Label htmlFor="email" className="text-foreground">Email</Label>
                                 <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         id="email"
                                         type="email"
                                         placeholder="you@example.com"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                                        className="pl-10 bg-background/50 border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20"
                                         required
                                     />
                                 </div>
@@ -140,16 +140,16 @@ export default function LoginPage() {
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="email" className="text-slate-300">Email</Label>
+                                <Label htmlFor="email" className="text-foreground">Email</Label>
                                 <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         id="email"
                                         type="email"
                                         placeholder="you@example.com"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                                        className="pl-10 bg-background/50 border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20"
                                         required
                                     />
                                 </div>
@@ -157,7 +157,7 @@ export default function LoginPage() {
 
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <Label htmlFor="password" className="text-slate-300">Password</Label>
+                                    <Label htmlFor="password" className="text-foreground">Password</Label>
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -165,20 +165,20 @@ export default function LoginPage() {
                                             setResetSent(false);
                                             clearError();
                                         }}
-                                        className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                                        className="text-sm text-primary hover:text-primary/80 transition-colors"
                                     >
                                         Forgot password?
                                     </button>
                                 </div>
                                 <div className="relative">
-                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         id="password"
                                         type="password"
                                         placeholder="••••••••"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                                        className="pl-10 bg-background/50 border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20"
                                         required
                                     />
                                 </div>
@@ -211,7 +211,7 @@ export default function LoginPage() {
                                 setResetSent(false);
                                 clearError();
                             }}
-                            className="text-sm text-slate-400 hover:text-white transition-colors"
+                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                         >
                             ← Back to sign in
                         </button>
