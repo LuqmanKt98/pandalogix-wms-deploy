@@ -124,7 +124,7 @@ export default function ReportsPage() {
             const clientShipments = shipments.filter(s => s.clientId === selectedClient)
 
             const filtered = clientShipments.filter(s => {
-                const date = s.date.toDate ? s.date.toDate() : new Date(s.date)
+                const date = s.date && typeof s.date.toDate === 'function' ? s.date.toDate() : new Date(s.date as unknown as string | number)
                 const dateStr = format(date, 'yyyy-MM-dd')
                 if (!dateRange.start || !dateRange.end) return true
                 return dateStr >= dateRange.start && dateStr <= dateRange.end
