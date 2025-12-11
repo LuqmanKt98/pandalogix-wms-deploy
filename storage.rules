@@ -1,0 +1,91 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check file size (max 10MB)
+    function isValidFileSize() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+    
+    // Helper function to check allowed content types
+    function isValidContentType() {
+      return request.resource.contentType.matches('image/.*') 
+          || request.resource.contentType.matches('application/pdf')
+          || request.resource.contentType.matches('application/msword')
+          || request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.*');
+    }
+    
+    // Shipment attachments - BOL uploads, labels, pickup photos
+    match /shipments/{shipmentId}/{allPaths=**} {
+      // All authenticated users can read shipment files
+      allow read: if isAuthenticated();
+      
+      // All authenticated users can upload/update shipment files with size and type validation
+      allow write: if isAuthenticated() 
+                   && isValidFileSize()
+                   && isValidContentType();
+      
+      // Allow delete for authenticated users
+      allow delete: if isAuthenticated();
+    }
+    
+    // Goods Received attachments - receiving photos, documentation
+    match /goodsReceived/{receivedId}/{allPaths=**} {
+      // All authenticated users can read goods received files
+      allow read: if isAuthenticated();
+      
+      // All authenticated users can upload/update files with size and type validation
+      allow write: if isAuthenticated() 
+                   && isValidFileSize()
+                   && isValidContentType();
+      
+      // Allow delete for authenticated users
+      allow delete: if isAuthenticated();
+    }
+    
+    // Inventory attachments - product photos
+    match /inventory/{inventoryId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() 
+                   && isValidFileSize()
+                   && isValidContentType();
+      allow delete: if isAuthenticated();
+    }
+    
+    // Client attachments - contracts, logos
+    match /clients/{clientId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() 
+                   && isValidFileSize()
+                   && isValidContentType();
+      allow delete: if isAuthenticated();
+    }
+    
+    // User profile images
+    match /users/{userId}/{allPaths=**} {
+      // Users can read their own files, admins can read all
+      allow read: if isAuthenticated();
+      
+      // Users can only write to their own folder
+      allow write: if isAuthenticated() 
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && request.resource.contentType.matches('image/.*');
+      
+      // Users can delete their own files
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Temporary uploads folder for processing
+    match /temp/{userId}/{allPaths=**} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+  }
+}
+

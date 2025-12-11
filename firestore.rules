@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getUserRole() {
+      // Check if user exists and has a role field, otherwise return null
+      return userExists() && 'role' in getUserData() ? getUserData().role : null;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && getUserRole() == 'superAdmin';
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+
+    function isStaff() {
+      return isAuthenticated() && getUserRole() == 'staff';
+    }
+
+    function isAdminOrSuperAdmin() {
+      return isSuperAdmin() || isAdmin();
+    }
+
+    function isAnyRole() {
+      return isSuperAdmin() || isAdmin() || isStaff();
+    }
+
+    // Users collection - Admin and Super Admin can manage users
+    match /users/{userId} {
+      // Allow reading own document or if admin/superAdmin
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdminOrSuperAdmin());
+
+      // Allow creating own document during signup, or admin/superAdmin can create any user
+      // Ensure the document being created has a valid role field
+      allow create: if isAuthenticated() &&
+                      (request.auth.uid == userId || isAdminOrSuperAdmin()) &&
+                      request.resource.data.role in ['staff', 'admin', 'superAdmin'];
+
+      // Admin and SuperAdmin can update users
+      // Ensure role field is not removed and remains valid
+      allow update: if isAdminOrSuperAdmin() &&
+                      request.resource.data.role in ['staff', 'admin', 'superAdmin'];
+
+      // Admin and SuperAdmin can delete users, but NOT superAdmin users and not themselves
+      allow delete: if isAdminOrSuperAdmin()
+                    && request.auth.uid != userId
+                    && get(/databases/$(database)/documents/users/$(userId)).data.role != 'superAdmin';
+    }
+
+    // Clients collection - Role-based access control
+    match /clients/{clientId} {
+      // All authenticated users with valid roles can read
+      allow read: if isAnyRole();
+
+      // Admin and SuperAdmin can create, update, delete
+      // Staff can only create and update (not delete)
+      allow create, update: if isAnyRole();
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+    // Inventory collection - Role-based access control
+    match /inventory/{inventoryId} {
+      // All authenticated users with valid roles can read
+      allow read: if isAnyRole();
+
+      // Admin and SuperAdmin can create, update, delete
+      // Staff can only create and update (not delete)
+      allow create, update: if isAnyRole();
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+    // Goods Received - Role-based access control
+    match /goodsReceived/{receivedId} {
+      // All authenticated users with valid roles can read
+      allow read: if isAnyRole();
+
+      // Admin and SuperAdmin can create, update, delete
+      // Staff can create and update (not delete)
+      allow create, update: if isAnyRole();
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+    // Shipments - Role-based access control
+    match /shipments/{shipmentId} {
+      // All authenticated users with valid roles can read
+      allow read: if isAnyRole();
+
+      // Admin and SuperAdmin can create, update, delete
+      // Staff can create and update (not delete)
+      allow create, update: if isAnyRole();
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+    // Activity Log - Admin and Super Admin can read, all authenticated users can write
+    match /activityLog/{logId} {
+      allow read: if isAdminOrSuperAdmin();
+      allow create: if isAnyRole();
+      allow update, delete: if false; // Logs are immutable
+    }
+  }
+}
+

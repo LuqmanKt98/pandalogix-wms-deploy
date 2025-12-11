@@ -1,8 +1,5 @@
-// @ts-ignore
-import WMSApp from './WMSApp'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
-
-export default function Page() {
-  return <WMSApp />
+export default function Home() {
+  redirect('/dashboard')
 }
