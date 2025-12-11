@@ -36,7 +36,7 @@ export function Header() {
     const [searchOpen, setSearchOpen] = useState(false)
     const pathname = usePathname()
     const router = useRouter()
-    const { user, logout, isSuperAdmin } = useAuth()
+    const { user, logout } = useAuth()
 
     const pageTitle = pageTitles[pathname] || 'Dashboard'
 
@@ -94,14 +94,7 @@ export function Header() {
                                 <div className="flex flex-col space-y-1">
                                     <p className="text-sm font-medium">{user.name}</p>
                                     <p className="text-xs text-muted-foreground">{user.email}</p>
-                                    <p className="text-xs">
-                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${isSuperAdmin
-                                                ? 'bg-amber-500/10 text-amber-500'
-                                                : 'bg-blue-500/10 text-blue-500'
-                                            }`}>
-                                            {isSuperAdmin ? 'Super Admin' : 'Staff'}
-                                        </span>
-                                    </p>
+
                                 </div>
                             </DropdownMenuLabel>
                             <DropdownMenuSeparator />
