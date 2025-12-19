@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useCurrentUser, useAuth } from "@/contexts/auth-context"
 import { getShipments, getClients, createShipment, updateShipment, deleteShipment, addShipmentAttachment, removeShipmentAttachment } from "@/lib/firestore"
 import { uploadFile, deleteFile } from "@/lib/storage"
-import { Shipment, Client, ShipmentItem, ShipmentStatus, ShipmentType, Attachment } from "@/lib/types"
+import { Shipment, Client, ShipmentItem, ShipmentStatus, ShipmentType, ShipmentMode, Attachment, PackSizes, SkuQuantity } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Search, Trash2, Edit, Eye, Loader2, RefreshCw, Truck, X, Upload, FileText, Image, Download, ExternalLink } from "lucide-react"
+import { Plus, Search, Trash2, Edit, Eye, Loader2, RefreshCw, Truck, X, Upload, FileText, Image, Download, ExternalLink, Package, CalendarDays } from "lucide-react"
 import { motion } from "framer-motion"
 import { format } from "date-fns"
 import { toast } from "@/components/ui/use-toast"
@@ -53,6 +53,16 @@ const typeColors: Record<ShipmentType, string> = {
     'FBA': 'bg-orange-500/10 text-orange-500',
     'TikTok': 'bg-pink-500/10 text-pink-500',
     'Other': 'bg-purple-500/10 text-purple-500',
+}
+
+const modeColors: Record<ShipmentMode, string> = {
+    'pallet': 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
+    'daily-bulk': 'bg-teal-500/10 text-teal-500 border-teal-500/20',
+}
+
+const modeLabels: Record<ShipmentMode, string> = {
+    'pallet': 'Outbound Pallet',
+    'daily-bulk': 'Daily Bulk Entry',
 }
 
 export default function ShipmentsPage() {
@@ -78,6 +88,7 @@ export default function ShipmentsPage() {
         date: new Date().toISOString().split('T')[0],
         clientId: "",
         shipmentType: "Standard" as ShipmentType,
+        shipmentMode: "pallet" as ShipmentMode,
         numberOfPallets: 0,
         status: "Created" as ShipmentStatus,
         destination: "",
@@ -85,6 +96,14 @@ export default function ShipmentsPage() {
         trackingNumber: "",
         notes: "",
         items: [] as ShipmentItem[],
+        // Daily bulk entry fields
+        packSizes: {
+            singlePacks: 0,
+            twoPacks: 0,
+            threePacks: 0,
+            fourPacks: 0,
+        } as PackSizes,
+        skuQuantities: [] as SkuQuantity[],
     })
 
     const [newItem, setNewItem] = useState<ShipmentItem>({
@@ -93,6 +112,12 @@ export default function ShipmentsPage() {
         quantity: 0,
         cartonQuantity: 0,
         palletInfo: "",
+    })
+
+    const [newSkuQuantity, setNewSkuQuantity] = useState<SkuQuantity>({
+        sku: "",
+        name: "",
+        quantity: 0,
     })
 
     useEffect(() => {
@@ -144,6 +169,22 @@ export default function ShipmentsPage() {
         setNewItem({ sku: "", name: "", quantity: 0, cartonQuantity: 0, palletInfo: "" })
     }
 
+    const handleAddSkuQuantity = () => {
+        if (!newSkuQuantity.sku || !newSkuQuantity.name || newSkuQuantity.quantity <= 0) return
+        setFormData({
+            ...formData,
+            skuQuantities: [...formData.skuQuantities, { ...newSkuQuantity }],
+        })
+        setNewSkuQuantity({ sku: "", name: "", quantity: 0 })
+    }
+
+    const handleRemoveSkuQuantity = (index: number) => {
+        setFormData({
+            ...formData,
+            skuQuantities: formData.skuQuantities.filter((_, i) => i !== index),
+        })
+    }
+
     const handleRemoveItem = (index: number) => {
         setFormData({
             ...formData,
@@ -153,9 +194,21 @@ export default function ShipmentsPage() {
 
     const handleSubmit = async () => {
         if (!formData.clientId || !currentUser) return
-        if (formData.items.length === 0) {
-            toast({ title: "Validation error", description: "Please add at least one item.", variant: "destructive" })
-            return
+
+        // Validation based on shipment mode
+        if (formData.shipmentMode === 'pallet') {
+            if (formData.items.length === 0) {
+                toast({ title: "Validation error", description: "Please add at least one item.", variant: "destructive" })
+                return
+            }
+        } else {
+            // Daily bulk mode - need at least pack sizes or SKU quantities
+            const totalPacks = formData.packSizes.singlePacks + formData.packSizes.twoPacks +
+                              formData.packSizes.threePacks + formData.packSizes.fourPacks
+            if (totalPacks === 0 && formData.skuQuantities.length === 0) {
+                toast({ title: "Validation error", description: "Please enter pack sizes or SKU quantities.", variant: "destructive" })
+                return
+            }
         }
 
         const selectedClient = clients.find(c => c.id === formData.clientId)
@@ -168,6 +221,7 @@ export default function ShipmentsPage() {
                 clientId: formData.clientId,
                 clientName: selectedClient.name,
                 shipmentType: formData.shipmentType,
+                shipmentMode: formData.shipmentMode,
                 numberOfPallets: formData.numberOfPallets,
                 status: formData.status,
                 destination: formData.destination,
@@ -175,14 +229,17 @@ export default function ShipmentsPage() {
                 trackingNumber: formData.trackingNumber,
                 notes: formData.notes,
                 items: formData.items,
+                packSizes: formData.shipmentMode === 'daily-bulk' ? formData.packSizes : undefined,
+                skuQuantities: formData.shipmentMode === 'daily-bulk' ? formData.skuQuantities : undefined,
             }
 
+            const modeLabel = formData.shipmentMode === 'daily-bulk' ? 'Daily bulk entry' : 'Shipment'
             if (editingId) {
                 await updateShipment(editingId, data, currentUser)
-                toast({ title: "Shipment updated", description: `Shipment to ${formData.destination} has been updated.`, variant: "success" })
+                toast({ title: `${modeLabel} updated`, description: `${modeLabel} for ${selectedClient.name} has been updated.`, variant: "success" })
             } else {
                 await createShipment(data, currentUser)
-                toast({ title: "Shipment created", description: `New shipment to ${formData.destination} has been created.`, variant: "success" })
+                toast({ title: `${modeLabel} created`, description: `New ${modeLabel.toLowerCase()} for ${selectedClient.name} has been created.`, variant: "success" })
             }
             await loadData()
             resetForm()
@@ -201,6 +258,7 @@ export default function ShipmentsPage() {
             date: new Date().toISOString().split('T')[0],
             clientId: "",
             shipmentType: "Standard",
+            shipmentMode: "pallet",
             numberOfPallets: 0,
             status: "Created",
             destination: "",
@@ -208,7 +266,15 @@ export default function ShipmentsPage() {
             trackingNumber: "",
             notes: "",
             items: [],
+            packSizes: {
+                singlePacks: 0,
+                twoPacks: 0,
+                threePacks: 0,
+                fourPacks: 0,
+            },
+            skuQuantities: [],
         })
+        setNewSkuQuantity({ sku: "", name: "", quantity: 0 })
     }
 
     const handleEdit = (record: Shipment) => {
@@ -216,6 +282,7 @@ export default function ShipmentsPage() {
             date: format(record.date.toDate(), 'yyyy-MM-dd'),
             clientId: record.clientId,
             shipmentType: record.shipmentType,
+            shipmentMode: record.shipmentMode || 'pallet',
             numberOfPallets: record.numberOfPallets,
             status: record.status,
             destination: record.destination || "",
@@ -223,6 +290,13 @@ export default function ShipmentsPage() {
             trackingNumber: record.trackingNumber || "",
             notes: record.notes || "",
             items: record.items || [],
+            packSizes: record.packSizes || {
+                singlePacks: 0,
+                twoPacks: 0,
+                threePacks: 0,
+                fourPacks: 0,
+            },
+            skuQuantities: record.skuQuantities || [],
         })
         setEditingId(record.id)
         setIsAddOpen(true)
@@ -348,10 +422,50 @@ export default function ShipmentsPage() {
                                 <DialogHeader>
                                     <DialogTitle>{editingId ? 'Edit' : 'New'} Shipment</DialogTitle>
                                     <DialogDescription>
-                                        Create an outbound shipment with items and details.
+                                        {formData.shipmentMode === 'pallet'
+                                            ? 'Create an outbound pallet shipment with items and details.'
+                                            : 'Enter daily bulk numbers with pack sizes and SKU breakdown.'}
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="grid gap-6 py-4">
+                                    {/* Shipment Mode Selector */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, shipmentMode: 'pallet' })}
+                                            className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                                                formData.shipmentMode === 'pallet'
+                                                    ? 'border-indigo-500 bg-indigo-500/10'
+                                                    : 'border-muted hover:border-muted-foreground/50'
+                                            }`}
+                                        >
+                                            <Truck className={`h-6 w-6 ${formData.shipmentMode === 'pallet' ? 'text-indigo-500' : 'text-muted-foreground'}`} />
+                                            <div className="text-left">
+                                                <p className={`font-medium ${formData.shipmentMode === 'pallet' ? 'text-indigo-500' : ''}`}>
+                                                    Outbound Pallet Shipment
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">Individual items with cartons & pallets</p>
+                                            </div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, shipmentMode: 'daily-bulk' })}
+                                            className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                                                formData.shipmentMode === 'daily-bulk'
+                                                    ? 'border-teal-500 bg-teal-500/10'
+                                                    : 'border-muted hover:border-muted-foreground/50'
+                                            }`}
+                                        >
+                                            <CalendarDays className={`h-6 w-6 ${formData.shipmentMode === 'daily-bulk' ? 'text-teal-500' : 'text-muted-foreground'}`} />
+                                            <div className="text-left">
+                                                <p className={`font-medium ${formData.shipmentMode === 'daily-bulk' ? 'text-teal-500' : ''}`}>
+                                                    Daily Bulk Entry
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">Pack sizes & SKU quantities for bulk</p>
+                                            </div>
+                                        </button>
+                                    </div>
+
                                     {/* Header Info */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <div className="space-y-2">
@@ -462,105 +576,253 @@ export default function ShipmentsPage() {
                                         />
                                     </div>
 
-                                    {/* Items Section */}
-                                    <div className="border-t pt-4">
-                                        <h4 className="font-medium mb-4">Items</h4>
+                                    {/* Conditional Section based on Mode */}
+                                    {formData.shipmentMode === 'pallet' ? (
+                                        /* Items Section for Pallet Shipments */
+                                        <div className="border-t pt-4">
+                                            <h4 className="font-medium mb-4">Items</h4>
 
-                                        {/* Add Item Form */}
-                                        <div className="grid grid-cols-6 gap-2 mb-4 p-4 bg-muted/50 rounded-lg">
-                                            <div className="space-y-1">
-                                                <Label className="text-xs">SKU</Label>
-                                                <Input
-                                                    value={newItem.sku}
-                                                    onChange={(e) => setNewItem({ ...newItem, sku: e.target.value })}
-                                                    placeholder="SKU"
-                                                />
+                                            {/* Add Item Form */}
+                                            <div className="grid grid-cols-6 gap-2 mb-4 p-4 bg-muted/50 rounded-lg">
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs">SKU</Label>
+                                                    <Input
+                                                        value={newItem.sku}
+                                                        onChange={(e) => setNewItem({ ...newItem, sku: e.target.value })}
+                                                        placeholder="SKU"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs">Name</Label>
+                                                    <Input
+                                                        value={newItem.name}
+                                                        onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                                                        placeholder="Item name"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs">Quantity</Label>
+                                                    <Input
+                                                        type="number"
+                                                        min="1"
+                                                        value={newItem.quantity}
+                                                        onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs">Cartons</Label>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        value={newItem.cartonQuantity}
+                                                        onChange={(e) => setNewItem({ ...newItem, cartonQuantity: Number(e.target.value) })}
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs">Pallet Info</Label>
+                                                    <Input
+                                                        value={newItem.palletInfo}
+                                                        onChange={(e) => setNewItem({ ...newItem, palletInfo: e.target.value })}
+                                                        placeholder="e.g., P1"
+                                                    />
+                                                </div>
+                                                <div className="flex items-end">
+                                                    <Button type="button" onClick={handleAddItem} size="sm" className="w-full">
+                                                        <Plus className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
                                             </div>
-                                            <div className="space-y-1">
-                                                <Label className="text-xs">Name</Label>
-                                                <Input
-                                                    value={newItem.name}
-                                                    onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                                                    placeholder="Item name"
-                                                />
+
+                                            {/* Items List */}
+                                            {formData.items.length > 0 ? (
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>SKU</TableHead>
+                                                            <TableHead>Name</TableHead>
+                                                            <TableHead className="text-right">Qty</TableHead>
+                                                            <TableHead className="text-right">Cartons</TableHead>
+                                                            <TableHead>Pallet</TableHead>
+                                                            <TableHead className="w-[50px]"></TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {formData.items.map((item, index) => (
+                                                            <TableRow key={index}>
+                                                                <TableCell className="font-mono">{item.sku}</TableCell>
+                                                                <TableCell>{item.name}</TableCell>
+                                                                <TableCell className="text-right">{item.quantity}</TableCell>
+                                                                <TableCell className="text-right">{item.cartonQuantity}</TableCell>
+                                                                <TableCell>{item.palletInfo || '-'}</TableCell>
+                                                                <TableCell>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        onClick={() => handleRemoveItem(index)}
+                                                                    >
+                                                                        <X className="h-4 w-4 text-destructive" />
+                                                                    </Button>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            ) : (
+                                                <p className="text-center text-muted-foreground py-4">No items added yet</p>
+                                            )}
+
+                                            {formData.items.length > 0 && (
+                                                <div className="flex justify-end mt-2 text-sm text-muted-foreground">
+                                                    Total: {formData.items.reduce((sum, i) => sum + i.quantity, 0)} units in {formData.items.reduce((sum, i) => sum + i.cartonQuantity, 0)} cartons
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        /* Daily Bulk Entry Section */
+                                        <div className="border-t pt-4 space-y-6">
+                                            {/* Pack Sizes */}
+                                            <div>
+                                                <h4 className="font-medium mb-4 flex items-center gap-2">
+                                                    <Package className="h-4 w-4" />
+                                                    Package Breakdown
+                                                </h4>
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-sm">1-Packs</Label>
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            value={formData.packSizes.singlePacks}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                packSizes: { ...formData.packSizes, singlePacks: Number(e.target.value) }
+                                                            })}
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-sm">2-Packs</Label>
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            value={formData.packSizes.twoPacks}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                packSizes: { ...formData.packSizes, twoPacks: Number(e.target.value) }
+                                                            })}
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-sm">3-Packs</Label>
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            value={formData.packSizes.threePacks}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                packSizes: { ...formData.packSizes, threePacks: Number(e.target.value) }
+                                                            })}
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-sm">4-Packs</Label>
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            value={formData.packSizes.fourPacks}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                packSizes: { ...formData.packSizes, fourPacks: Number(e.target.value) }
+                                                            })}
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-end mt-2 text-sm text-muted-foreground">
+                                                    Total Packages: {formData.packSizes.singlePacks + formData.packSizes.twoPacks + formData.packSizes.threePacks + formData.packSizes.fourPacks} |
+                                                    Total Items: {formData.packSizes.singlePacks * 1 + formData.packSizes.twoPacks * 2 + formData.packSizes.threePacks * 3 + formData.packSizes.fourPacks * 4}
+                                                </div>
                                             </div>
-                                            <div className="space-y-1">
-                                                <Label className="text-xs">Quantity</Label>
-                                                <Input
-                                                    type="number"
-                                                    min="1"
-                                                    value={newItem.quantity}
-                                                    onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <Label className="text-xs">Cartons</Label>
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={newItem.cartonQuantity}
-                                                    onChange={(e) => setNewItem({ ...newItem, cartonQuantity: Number(e.target.value) })}
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <Label className="text-xs">Pallet Info</Label>
-                                                <Input
-                                                    value={newItem.palletInfo}
-                                                    onChange={(e) => setNewItem({ ...newItem, palletInfo: e.target.value })}
-                                                    placeholder="e.g., P1"
-                                                />
-                                            </div>
-                                            <div className="flex items-end">
-                                                <Button type="button" onClick={handleAddItem} size="sm" className="w-full">
-                                                    <Plus className="h-4 w-4" />
-                                                </Button>
+
+                                            {/* SKU Quantities */}
+                                            <div>
+                                                <h4 className="font-medium mb-4">SKU Quantities</h4>
+                                                <div className="grid grid-cols-4 gap-2 mb-4 p-4 bg-muted/50 rounded-lg">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs">SKU</Label>
+                                                        <Input
+                                                            value={newSkuQuantity.sku}
+                                                            onChange={(e) => setNewSkuQuantity({ ...newSkuQuantity, sku: e.target.value })}
+                                                            placeholder="SKU"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs">Name</Label>
+                                                        <Input
+                                                            value={newSkuQuantity.name}
+                                                            onChange={(e) => setNewSkuQuantity({ ...newSkuQuantity, name: e.target.value })}
+                                                            placeholder="Product name"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs">Quantity</Label>
+                                                        <Input
+                                                            type="number"
+                                                            min="1"
+                                                            value={newSkuQuantity.quantity}
+                                                            onChange={(e) => setNewSkuQuantity({ ...newSkuQuantity, quantity: Number(e.target.value) })}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-end">
+                                                        <Button type="button" onClick={handleAddSkuQuantity} size="sm" className="w-full">
+                                                            <Plus className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                {formData.skuQuantities.length > 0 ? (
+                                                    <Table>
+                                                        <TableHeader>
+                                                            <TableRow>
+                                                                <TableHead>SKU</TableHead>
+                                                                <TableHead>Name</TableHead>
+                                                                <TableHead className="text-right">Quantity</TableHead>
+                                                                <TableHead className="w-[50px]"></TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {formData.skuQuantities.map((sq, index) => (
+                                                                <TableRow key={index}>
+                                                                    <TableCell className="font-mono">{sq.sku}</TableCell>
+                                                                    <TableCell>{sq.name}</TableCell>
+                                                                    <TableCell className="text-right">{sq.quantity}</TableCell>
+                                                                    <TableCell>
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            onClick={() => handleRemoveSkuQuantity(index)}
+                                                                        >
+                                                                            <X className="h-4 w-4 text-destructive" />
+                                                                        </Button>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                ) : (
+                                                    <p className="text-center text-muted-foreground py-4">No SKU quantities added yet</p>
+                                                )}
+
+                                                {formData.skuQuantities.length > 0 && (
+                                                    <div className="flex justify-end mt-2 text-sm text-muted-foreground">
+                                                        Total SKU Units: {formData.skuQuantities.reduce((sum, sq) => sum + sq.quantity, 0)}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-
-                                        {/* Items List */}
-                                        {formData.items.length > 0 ? (
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead>SKU</TableHead>
-                                                        <TableHead>Name</TableHead>
-                                                        <TableHead className="text-right">Qty</TableHead>
-                                                        <TableHead className="text-right">Cartons</TableHead>
-                                                        <TableHead>Pallet</TableHead>
-                                                        <TableHead className="w-[50px]"></TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {formData.items.map((item, index) => (
-                                                        <TableRow key={index}>
-                                                            <TableCell className="font-mono">{item.sku}</TableCell>
-                                                            <TableCell>{item.name}</TableCell>
-                                                            <TableCell className="text-right">{item.quantity}</TableCell>
-                                                            <TableCell className="text-right">{item.cartonQuantity}</TableCell>
-                                                            <TableCell>{item.palletInfo || '-'}</TableCell>
-                                                            <TableCell>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    onClick={() => handleRemoveItem(index)}
-                                                                >
-                                                                    <X className="h-4 w-4 text-destructive" />
-                                                                </Button>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        ) : (
-                                            <p className="text-center text-muted-foreground py-4">No items added yet</p>
-                                        )}
-
-                                        {formData.items.length > 0 && (
-                                            <div className="flex justify-end mt-2 text-sm text-muted-foreground">
-                                                Total: {formData.items.reduce((sum, i) => sum + i.quantity, 0)} units in {formData.items.reduce((sum, i) => sum + i.cartonQuantity, 0)} cartons
-                                            </div>
-                                        )}
-                                    </div>
+                                    )}
                                 </div>
                                 <DialogFooter>
                                     <Button onClick={handleSubmit} disabled={isSubmitting}>
@@ -570,7 +832,7 @@ export default function ShipmentsPage() {
                                                 {editingId ? 'Updating...' : 'Saving...'}
                                             </>
                                         ) : (
-                                            <>{editingId ? 'Update' : 'Create'} Shipment</>
+                                            <>{editingId ? 'Update' : 'Create'} {formData.shipmentMode === 'daily-bulk' ? 'Entry' : 'Shipment'}</>
                                         )}
                                     </Button>
                                 </DialogFooter>
@@ -629,10 +891,10 @@ export default function ShipmentsPage() {
                         <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Client</TableHead>
+                            <TableHead>Mode</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead className="text-right"># Units</TableHead>
-                            <TableHead className="text-right"># Pallets</TableHead>
-                            <TableHead>Destination</TableHead>
+                            <TableHead>Pack Breakdown</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -656,13 +918,46 @@ export default function ShipmentsPage() {
                                     <TableCell>{formatDate(shipment.date)}</TableCell>
                                     <TableCell className="font-medium">{shipment.clientName}</TableCell>
                                     <TableCell>
+                                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${modeColors[shipment.shipmentMode || 'pallet']}`}>
+                                            {shipment.shipmentMode === 'daily-bulk' ? 'Daily' : 'Pallet'}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell>
                                         <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${typeColors[shipment.shipmentType]}`}>
                                             {shipment.shipmentType}
                                         </span>
                                     </TableCell>
                                     <TableCell className="text-right">{shipment.numberOfUnits}</TableCell>
-                                    <TableCell className="text-right">{shipment.numberOfPallets}</TableCell>
-                                    <TableCell>{shipment.destination || '-'}</TableCell>
+                                    <TableCell>
+                                        {shipment.shipmentMode === 'daily-bulk' && shipment.packSizes ? (
+                                            <div className="flex flex-wrap gap-1">
+                                                {shipment.packSizes.singlePacks > 0 && (
+                                                    <span className="inline-flex px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-800">
+                                                        1pk: {shipment.packSizes.singlePacks}
+                                                    </span>
+                                                )}
+                                                {shipment.packSizes.twoPacks > 0 && (
+                                                    <span className="inline-flex px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                                                        2pk: {shipment.packSizes.twoPacks}
+                                                    </span>
+                                                )}
+                                                {shipment.packSizes.threePacks > 0 && (
+                                                    <span className="inline-flex px-1.5 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+                                                        3pk: {shipment.packSizes.threePacks}
+                                                    </span>
+                                                )}
+                                                {shipment.packSizes.fourPacks > 0 && (
+                                                    <span className="inline-flex px-1.5 py-0.5 rounded text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
+                                                        4pk: {shipment.packSizes.fourPacks}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-muted-foreground text-xs">
+                                                {shipment.numberOfPallets > 0 ? `${shipment.numberOfPallets} pallets` : '-'}
+                                            </span>
+                                        )}
+                                    </TableCell>
                                     <TableCell>
                                         <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium border ${statusColors[shipment.status]}`}>
                                             {shipment.status}
@@ -705,12 +1000,16 @@ export default function ShipmentsPage() {
                         <Tabs defaultValue="details" className="w-full">
                             <TabsList className="grid w-full grid-cols-3">
                                 <TabsTrigger value="details">Details</TabsTrigger>
-                                <TabsTrigger value="items">Items ({viewingRecord.items?.length || 0})</TabsTrigger>
+                                <TabsTrigger value="items">
+                                    {viewingRecord.shipmentMode === 'daily-bulk'
+                                        ? `Pack Sizes (${viewingRecord.totalPackages || 0})`
+                                        : `Items (${viewingRecord.items?.length || 0})`}
+                                </TabsTrigger>
                                 <TabsTrigger value="attachments">Attachments ({viewingRecord.attachments?.length || 0})</TabsTrigger>
                             </TabsList>
 
                             <TabsContent value="details" className="space-y-6 mt-4">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                                     <Card>
                                         <CardHeader className="p-4 pb-2">
                                             <CardTitle className="text-xs text-muted-foreground">Date</CardTitle>
@@ -725,6 +1024,16 @@ export default function ShipmentsPage() {
                                         </CardHeader>
                                         <CardContent className="p-4 pt-0">
                                             <p className="font-medium">{viewingRecord.clientName}</p>
+                                        </CardContent>
+                                    </Card>
+                                    <Card>
+                                        <CardHeader className="p-4 pb-2">
+                                            <CardTitle className="text-xs text-muted-foreground">Mode</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="p-4 pt-0">
+                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${modeColors[viewingRecord.shipmentMode || 'pallet']}`}>
+                                                {modeLabels[viewingRecord.shipmentMode || 'pallet']}
+                                            </span>
                                         </CardContent>
                                     </Card>
                                     <Card>
@@ -808,28 +1117,100 @@ export default function ShipmentsPage() {
                             </TabsContent>
 
                             <TabsContent value="items" className="mt-4">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>SKU</TableHead>
-                                            <TableHead>Name</TableHead>
-                                            <TableHead className="text-right">Quantity</TableHead>
-                                            <TableHead className="text-right">Cartons</TableHead>
-                                            <TableHead>Pallet</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {(viewingRecord.items || []).map((item, index) => (
-                                            <TableRow key={index}>
-                                                <TableCell className="font-mono">{item.sku}</TableCell>
-                                                <TableCell>{item.name}</TableCell>
-                                                <TableCell className="text-right">{item.quantity}</TableCell>
-                                                <TableCell className="text-right">{item.cartonQuantity}</TableCell>
-                                                <TableCell>{item.palletInfo || '-'}</TableCell>
+                                {viewingRecord.shipmentMode === 'daily-bulk' ? (
+                                    <div className="space-y-6">
+                                        {/* Pack Sizes Display */}
+                                        {viewingRecord.packSizes && (
+                                            <div>
+                                                <h4 className="font-medium mb-4 flex items-center gap-2">
+                                                    <Package className="h-4 w-4" />
+                                                    Package Breakdown
+                                                </h4>
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                    <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-center">
+                                                        <p className="text-2xl font-bold">{viewingRecord.packSizes.singlePacks}</p>
+                                                        <p className="text-sm text-muted-foreground">1-Packs</p>
+                                                    </div>
+                                                    <div className="p-4 bg-blue-100 dark:bg-blue-900 rounded-lg text-center">
+                                                        <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{viewingRecord.packSizes.twoPacks}</p>
+                                                        <p className="text-sm text-muted-foreground">2-Packs</p>
+                                                    </div>
+                                                    <div className="p-4 bg-green-100 dark:bg-green-900 rounded-lg text-center">
+                                                        <p className="text-2xl font-bold text-green-700 dark:text-green-300">{viewingRecord.packSizes.threePacks}</p>
+                                                        <p className="text-sm text-muted-foreground">3-Packs</p>
+                                                    </div>
+                                                    <div className="p-4 bg-purple-100 dark:bg-purple-900 rounded-lg text-center">
+                                                        <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{viewingRecord.packSizes.fourPacks}</p>
+                                                        <p className="text-sm text-muted-foreground">4-Packs</p>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-4 p-4 bg-muted/50 rounded-lg grid grid-cols-2 gap-4 text-center">
+                                                    <div>
+                                                        <p className="text-xl font-bold">{viewingRecord.totalPackages || 0}</p>
+                                                        <p className="text-sm text-muted-foreground">Total Packages</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xl font-bold">
+                                                            {(viewingRecord.packSizes.singlePacks * 1) +
+                                                             (viewingRecord.packSizes.twoPacks * 2) +
+                                                             (viewingRecord.packSizes.threePacks * 3) +
+                                                             (viewingRecord.packSizes.fourPacks * 4)}
+                                                        </p>
+                                                        <p className="text-sm text-muted-foreground">Total Items</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* SKU Quantities */}
+                                        {viewingRecord.skuQuantities && viewingRecord.skuQuantities.length > 0 && (
+                                            <div>
+                                                <h4 className="font-medium mb-4">SKU Quantities</h4>
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>SKU</TableHead>
+                                                            <TableHead>Name</TableHead>
+                                                            <TableHead className="text-right">Quantity</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {viewingRecord.skuQuantities.map((sq, index) => (
+                                                            <TableRow key={index}>
+                                                                <TableCell className="font-mono">{sq.sku}</TableCell>
+                                                                <TableCell>{sq.name}</TableCell>
+                                                                <TableCell className="text-right">{sq.quantity}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>SKU</TableHead>
+                                                <TableHead>Name</TableHead>
+                                                <TableHead className="text-right">Quantity</TableHead>
+                                                <TableHead className="text-right">Cartons</TableHead>
+                                                <TableHead>Pallet</TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {(viewingRecord.items || []).map((item, index) => (
+                                                <TableRow key={index}>
+                                                    <TableCell className="font-mono">{item.sku}</TableCell>
+                                                    <TableCell>{item.name}</TableCell>
+                                                    <TableCell className="text-right">{item.quantity}</TableCell>
+                                                    <TableCell className="text-right">{item.cartonQuantity}</TableCell>
+                                                    <TableCell>{item.palletInfo || '-'}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                )}
                             </TabsContent>
 
                             <TabsContent value="attachments" className="mt-4 space-y-4">

@@ -434,13 +434,25 @@ export async function createShipment(
     data: CreateShipmentData,
     currentUser: { id: string; name: string; email: string }
 ): Promise<Shipment> {
-    // Calculate total units from items
-    const numberOfUnits = data.items.reduce((sum, item) => sum + item.quantity, 0);
+    // Calculate total units based on shipment mode
+    let numberOfUnits: number;
+    let totalPackages: number | undefined;
+
+    if (data.shipmentMode === 'daily-bulk') {
+        // For daily bulk entries, calculate from pack sizes and SKU quantities
+        const packSizes = data.packSizes || { singlePacks: 0, twoPacks: 0, threePacks: 0, fourPacks: 0 };
+        totalPackages = packSizes.singlePacks + packSizes.twoPacks + packSizes.threePacks + packSizes.fourPacks;
+        numberOfUnits = data.skuQuantities?.reduce((sum, sq) => sum + sq.quantity, 0) || 0;
+    } else {
+        // For pallet shipments, calculate from items
+        numberOfUnits = data.items.reduce((sum, item) => sum + item.quantity, 0);
+    }
 
     const shipmentData = {
         ...data,
         date: Timestamp.fromDate(data.date),
         numberOfUnits,
+        totalPackages,
         attachments: [],
         createdBy: currentUser.id,
         createdByName: currentUser.name,
@@ -450,6 +462,7 @@ export async function createShipment(
 
     const docRef = await addDoc(collection(db, COLLECTIONS.SHIPMENTS), shipmentData);
 
+    const modeLabel = data.shipmentMode === 'daily-bulk' ? 'Daily Bulk' : 'Pallet';
     await logActivity(
         currentUser.id,
         currentUser.name,
@@ -457,8 +470,8 @@ export async function createShipment(
         'create',
         COLLECTIONS.SHIPMENTS,
         docRef.id,
-        `${data.shipmentType} - ${data.clientName}`,
-        `Created shipment for ${data.clientName} (${data.shipmentType})`
+        `${modeLabel} - ${data.clientName}`,
+        `Created ${modeLabel.toLowerCase()} shipment for ${data.clientName} (${data.shipmentType})`
     );
 
     const createdDoc = await getDoc(docRef);
@@ -483,8 +496,18 @@ export async function updateShipment(
         updateData.date = Timestamp.fromDate(data.date);
     }
 
-    // Recalculate total units if items changed
-    if (data.items) {
+    // Recalculate totals based on shipment mode
+    if (data.shipmentMode === 'daily-bulk') {
+        // For daily bulk entries
+        if (data.packSizes) {
+            updateData.totalPackages = data.packSizes.singlePacks + data.packSizes.twoPacks +
+                                        data.packSizes.threePacks + data.packSizes.fourPacks;
+        }
+        if (data.skuQuantities) {
+            updateData.numberOfUnits = data.skuQuantities.reduce((sum, sq) => sum + sq.quantity, 0);
+        }
+    } else if (data.items) {
+        // For pallet shipments
         updateData.numberOfUnits = data.items.reduce((sum, item) => sum + item.quantity, 0);
     }
 

@@ -60,6 +60,9 @@ export interface GoodsReceived {
 // Shipment types
 export type ShipmentType = 'Standard' | 'FBA' | 'TikTok' | 'Other';
 
+// Shipment mode - distinguishes between pallet shipments and daily bulk entries
+export type ShipmentMode = 'pallet' | 'daily-bulk';
+
 // Shipment status
 export type ShipmentStatus = 'Planned' | 'Created' | 'Booked' | 'Picked Up' | 'Delivered';
 
@@ -70,6 +73,21 @@ export interface ShipmentItem {
     quantity: number;
     cartonQuantity: number;
     palletInfo?: string;
+}
+
+// SKU Quantity for daily bulk entries
+export interface SkuQuantity {
+    sku: string;
+    name: string;
+    quantity: number;
+}
+
+// Pack sizes for daily bulk entries
+export interface PackSizes {
+    singlePacks: number;
+    twoPacks: number;
+    threePacks: number;
+    fourPacks: number;
 }
 
 // Attachment interface
@@ -89,14 +107,20 @@ export interface Shipment {
     clientId: string;
     clientName: string;
     shipmentType: ShipmentType;
+    shipmentMode: ShipmentMode;
     numberOfUnits: number;
     numberOfPallets: number;
     status: ShipmentStatus;
     destination?: string;
     carrier?: string;
     trackingNumber?: string;
+    // For pallet shipments (outbound)
     items: ShipmentItem[];
     attachments: Attachment[];
+    // For daily bulk entries
+    packSizes?: PackSizes;
+    skuQuantities?: SkuQuantity[];
+    totalPackages?: number;
     notes?: string;
     createdBy: string;
     createdByName: string;
@@ -148,11 +172,17 @@ export interface CreateShipmentData {
     clientId: string;
     clientName: string;
     shipmentType: ShipmentType;
+    shipmentMode: ShipmentMode;
     numberOfPallets: number;
     destination?: string;
     carrier?: string;
     trackingNumber?: string;
+    // For pallet shipments
     items: ShipmentItem[];
+    // For daily bulk entries
+    packSizes?: PackSizes;
+    skuQuantities?: SkuQuantity[];
+    totalPackages?: number;
     notes?: string;
     status: ShipmentStatus;
 }
